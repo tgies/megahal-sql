@@ -1,0 +1,11 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: megahal
+      POSTGRES_PASSWORD: megahal
+      POSTGRES_DB: megahal
+    ports:
+      - "5434:5432"
+    tmpfs:
+      - /var/lib/postgresql/data

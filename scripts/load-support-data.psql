@@ -1,0 +1,10 @@
+-- Load MegaHAL support/lookup data from data files.
+-- Run from the project root: psql -U megahal -d megahal -f scripts/load-support-data.psql
+--
+-- Uses \copy (client-side) so the files only need to be accessible to the
+-- psql client, not the PostgreSQL server.
+
+\copy banned_words (word) FROM PROGRAM 'grep -v "^#" data/megahal.ban | grep -v "^$"'
+\copy aux_words (word) FROM PROGRAM 'grep -v "^#" data/megahal.aux | grep -v "^$"'
+\copy greeting_words (word) FROM PROGRAM 'grep -v "^#" data/megahal.grt | grep -v "^$"'
+\copy swap_pairs (from_word, to_word) FROM PROGRAM 'grep -v "^#" data/megahal.swp | grep -v "^$" | tr -s "\t"'
