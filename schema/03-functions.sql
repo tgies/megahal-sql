@@ -127,12 +127,27 @@ tokens AS (
 
 -- PHASE 2: SYMBOL INTERNING
 
--- Intern all unique tokens across all lines into the symbols table.
+-- Intern unique tokens from learnable lines into the symbols table.
+-- Only lines with more tokens than the Markov order are learnable,
+-- matching the original C code's learn() which skips short inputs
+-- entirely (including dictionary registration).  Without this guard,
+-- words from too-short inputs become "orphan symbols" — present in
+-- the symbol table but absent from the trie — which lets them be
+-- used as keywords/seeds during reply generation, producing chaotic
+-- output (context-free babble from root with no spacing guarantees).
 -- ON CONFLICT DO UPDATE (no-op) ensures RETURNING works for existing words.
 interned AS (
     INSERT INTO symbols (id, word)
     SELECT nextval('symbols_id_seq'), word
-    FROM (SELECT DISTINCT token AS word FROM tokens) t
+    FROM (
+        SELECT DISTINCT token AS word
+        FROM tokens
+        WHERE line_id IN (
+            SELECT line_id FROM tokens
+            GROUP BY line_id
+            HAVING count(*) > (SELECT value FROM config WHERE key = 'order')
+        )
+    ) t
     ON CONFLICT (word) DO UPDATE SET word = EXCLUDED.word
     RETURNING id, word
 ),
