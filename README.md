@@ -15,8 +15,8 @@ statement. Seriously, look at `schema/03-functions.sql`. The Python driver is
 just for convenience; you can skip it entirely and use `psql`.
 
 [Try the live demo](https://tgies.github.io/megahal-sql/). It runs PostgreSQL
-in your browser via [PGlite](https://pglite.dev/) (WASM). no install. A
-diagnostic console shows queries hitting a real PostgreSQL engine.
+in your browser via [PGlite](https://pglite.dev/) (WASM). A diagnostic console
+shows queries hitting a real PostgreSQL engine.
 
 ## Architecture
 
