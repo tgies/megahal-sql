@@ -14,6 +14,10 @@ sleeve. Learning is a single SQL statement. Reply generation is a single SQL
 statement. Seriously, look at `schema/03-functions.sql`. The Python driver is
 just for convenience; you can skip it entirely and use `psql`.
 
+[Try the live demo](https://tgies.github.io/megahal-sql/). It runs PostgreSQL
+in your browser via [PGlite](https://pglite.dev/) (WASM). no install. A
+diagnostic console shows queries hitting a real PostgreSQL engine.
+
 ## Architecture
 
 ```
@@ -26,6 +30,12 @@ schema/
 
 scripts/
   load-support-data.psql Data loader for psql users
+  generate-support-sql.py  Generates INSERT statements for the browser demo
+
+web/                     Browser demo (GitHub Pages)
+  index.html             Single-page app, PGlite + inline JS
+  pglite-worker.js       Web Worker bootstrap for PGlite
+  support-data.sql       Generated INSERT statements for support data
 
 data/                    (All lifted directly from the original MegaHAL)
   megahal.trn            Training corpus (may be freely substituted)
@@ -49,7 +59,8 @@ docs/
 > the original MegaHAL distribution. This doesn't count as cheating because
 > it's not part of the core algorithm, the pure-SQL way is trivial and
 > uninteresting, and loading directly from the original distribution's files
-> has great "watch this" value.
+> has great "watch this" value. (The browser demo uses generated INSERT
+> statements instead — see `web/support-data.sql`.)
 
 ## SQL Functions
 
@@ -63,6 +74,10 @@ The public API is four SQL functions in `03-functions.sql`:
 | `megahal_converse(text, num_candidates)` | Learn from the input, then generate a reply. One function call per conversational turn. |
 
 ## Quick Start
+
+### Web-based with WASM PostgreSQL (PGlite)
+
+[Try the live demo](https://tgies.github.io/megahal-sql/).
 
 ### With the Python driver
 

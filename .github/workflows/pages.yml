@@ -1,0 +1,39 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate support data SQL
+        run: python scripts/generate-support-sql.py
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site/schema _site/data
+          cp web/index.html web/pglite-worker.js web/support-data.sql _site/
+          cp schema/01-tables.sql schema/02-seed.sql schema/03-functions.sql _site/schema/
+          cp data/megahal.trn _site/data/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+      - id: deployment
+        uses: actions/deploy-pages@v4
