@@ -873,20 +873,21 @@ candidates AS (
                 WITH ch AS (SELECT tn.id AS node_id, tn.symbol, tn.count FROM trie_nodes tn
                     WHERE tn.parent_id = deepest.node_id AND tn.tree = 'F'),
                 nm AS (SELECT node_id, symbol, count, row_number() OVER (ORDER BY random()) AS pos FROM ch),
-                kp AS (SELECT n.symbol AS symbol_id, n.node_id, true AS is_keyword FROM nm n
-                    WHERE n.symbol = ANY(kw.keyword_ids)
-                      AND (f.used_key OR NOT (n.symbol = ANY(kw.aux_ids)))
-                      AND NOT (n.symbol = ANY(f.reply_syms))
-                    ORDER BY n.pos LIMIT 1),
-                cu AS (SELECT symbol, node_id, sum(count) OVER (ORDER BY pos) AS cum FROM nm),
+                cu AS (SELECT symbol, node_id, pos, sum(count) OVER (ORDER BY pos) AS cum FROM nm),
                 th AS (SELECT floor(random() * parent.usage)::bigint AS c),
-                rp AS (SELECT cu.symbol AS symbol_id, cu.node_id, false AS is_keyword
-                       FROM cu, th WHERE cu.cum > th.c ORDER BY cu.cum LIMIT 1)
-                SELECT symbol_id::smallint, node_id, is_keyword FROM kp
-                UNION ALL SELECT symbol_id::smallint, node_id, is_keyword FROM rp
-                    WHERE NOT EXISTS (SELECT 1 FROM kp)
+                rp AS (SELECT cu.symbol AS symbol_id, cu.node_id,
+                           (cu.symbol = ANY(kw.keyword_ids)
+                            AND (f.used_key OR NOT (cu.symbol = ANY(kw.aux_ids)))
+                            AND NOT (cu.symbol = ANY(f.reply_syms))) AS is_keyword
+                       FROM cu, th
+                       WHERE (cu.symbol = ANY(kw.keyword_ids)
+                              AND (f.used_key OR NOT (cu.symbol = ANY(kw.aux_ids)))
+                              AND NOT (cu.symbol = ANY(f.reply_syms)))
+                          OR cu.cum > th.c
+                       ORDER BY cu.pos LIMIT 1)
+                SELECT symbol_id::smallint, node_id, is_keyword FROM rp
                 UNION ALL SELECT 0::smallint, NULL::int, false
-                    WHERE NOT EXISTS (SELECT 1 FROM kp) AND NOT EXISTS (SELECT 1 FROM rp)
+                    WHERE NOT EXISTS (SELECT 1 FROM rp)
                 LIMIT 1
             ) ns
             CROSS JOIN LATERAL (
@@ -934,20 +935,21 @@ candidates AS (
                 WITH ch AS (SELECT tn.id AS node_id, tn.symbol, tn.count FROM trie_nodes tn
                     WHERE tn.parent_id = deepest.node_id AND tn.tree = 'B'),
                 nm AS (SELECT node_id, symbol, count, row_number() OVER (ORDER BY random()) AS pos FROM ch),
-                kp AS (SELECT n.symbol AS symbol_id, n.node_id, true AS is_keyword FROM nm n
-                    WHERE n.symbol = ANY(kw.keyword_ids)
-                      AND (b.used_key OR NOT (n.symbol = ANY(kw.aux_ids)))
-                      AND NOT (n.symbol = ANY(b.reply_syms))
-                    ORDER BY n.pos LIMIT 1),
-                cu AS (SELECT symbol, node_id, sum(count) OVER (ORDER BY pos) AS cum FROM nm),
+                cu AS (SELECT symbol, node_id, pos, sum(count) OVER (ORDER BY pos) AS cum FROM nm),
                 th AS (SELECT floor(random() * parent.usage)::bigint AS c),
-                rp AS (SELECT cu.symbol AS symbol_id, cu.node_id, false AS is_keyword
-                       FROM cu, th WHERE cu.cum > th.c ORDER BY cu.cum LIMIT 1)
-                SELECT symbol_id::smallint, node_id, is_keyword FROM kp
-                UNION ALL SELECT symbol_id::smallint, node_id, is_keyword FROM rp
-                    WHERE NOT EXISTS (SELECT 1 FROM kp)
+                rp AS (SELECT cu.symbol AS symbol_id, cu.node_id,
+                           (cu.symbol = ANY(kw.keyword_ids)
+                            AND (b.used_key OR NOT (cu.symbol = ANY(kw.aux_ids)))
+                            AND NOT (cu.symbol = ANY(b.reply_syms))) AS is_keyword
+                       FROM cu, th
+                       WHERE (cu.symbol = ANY(kw.keyword_ids)
+                              AND (b.used_key OR NOT (cu.symbol = ANY(kw.aux_ids)))
+                              AND NOT (cu.symbol = ANY(b.reply_syms)))
+                          OR cu.cum > th.c
+                       ORDER BY cu.pos LIMIT 1)
+                SELECT symbol_id::smallint, node_id, is_keyword FROM rp
                 UNION ALL SELECT 0::smallint, NULL::int, false
-                    WHERE NOT EXISTS (SELECT 1 FROM kp) AND NOT EXISTS (SELECT 1 FROM rp)
+                    WHERE NOT EXISTS (SELECT 1 FROM rp)
                 LIMIT 1
             ) ns
             CROSS JOIN LATERAL (
