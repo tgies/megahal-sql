@@ -669,7 +669,6 @@ aux_kw AS (
     CROSS JOIN LATERAL (SELECT COALESCE(sp.to_word, t.token) AS candidate) sw
     JOIN symbols s ON s.word = sw.candidate
     WHERE substring(sw.candidate FROM 1 FOR 1) ~ '[A-Z0-9]'
-      AND NOT EXISTS (SELECT 1 FROM banned_words bw WHERE bw.word = sw.candidate)
       AND EXISTS (SELECT 1 FROM aux_words aw WHERE aw.word = sw.candidate)
       AND EXISTS (SELECT 1 FROM primary_kw)
 ),
