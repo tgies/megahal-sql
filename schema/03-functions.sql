@@ -1051,7 +1051,6 @@ best_candidate AS (
     SELECT reply_syms
     FROM all_candidates, input_sym_ids isym
     WHERE reply_syms IS DISTINCT FROM isym.ids
-      AND array_length(reply_syms, 1) > 1
     ORDER BY score DESC
     LIMIT 1
 ),
