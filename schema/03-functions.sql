@@ -203,7 +203,7 @@ fwd_nodes AS (
         CASE WHEN d.d >= 4 THEN fs.syms[p.p - d.d + 4] END AS p4,
         CASE WHEN d.d >= 5 THEN fs.syms[p.p - d.d + 5] END AS p5,
         CASE WHEN d.d >= 6 THEN fs.syms[p.p - d.d + 6] END AS p6,
-        count(*) AS count_incr
+        LEAST(count(*), 65535)::int AS count_incr
     FROM fwd_syms fs,
     LATERAL generate_series(1, array_length(fs.syms, 1)) p(p),
     LATERAL generate_series(1, least(p.p, (SELECT ord + 1 FROM params))) d(d)
@@ -255,7 +255,7 @@ fwd_d1 AS (
     WHERE n.depth = 1
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -274,7 +274,7 @@ fwd_d2 AS (
     WHERE n.depth = 2
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -294,7 +294,7 @@ fwd_d3 AS (
     WHERE n.depth = 3
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -316,7 +316,7 @@ fwd_d4 AS (
     WHERE n.depth = 4
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -339,7 +339,7 @@ fwd_d5 AS (
     WHERE n.depth = 5
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -361,7 +361,7 @@ fwd_d6 AS (
     WHERE n.depth = 6
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -391,7 +391,7 @@ bwd_nodes AS (
         CASE WHEN d.d >= 4 THEN bs.syms[p.p - d.d + 4] END AS p4,
         CASE WHEN d.d >= 5 THEN bs.syms[p.p - d.d + 5] END AS p5,
         CASE WHEN d.d >= 6 THEN bs.syms[p.p - d.d + 6] END AS p6,
-        count(*) AS count_incr
+        LEAST(count(*), 65535)::int AS count_incr
     FROM bwd_syms bs,
     LATERAL generate_series(1, array_length(bs.syms, 1)) p(p),
     LATERAL generate_series(1, least(p.p, (SELECT ord + 1 FROM params))) d(d)
@@ -443,7 +443,7 @@ bwd_d1 AS (
     WHERE n.depth = 1
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -462,7 +462,7 @@ bwd_d2 AS (
     WHERE n.depth = 2
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -482,7 +482,7 @@ bwd_d3 AS (
     WHERE n.depth = 3
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -504,7 +504,7 @@ bwd_d4 AS (
     WHERE n.depth = 4
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -527,7 +527,7 @@ bwd_d5 AS (
     WHERE n.depth = 5
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 ),
 
@@ -549,7 +549,7 @@ bwd_d6 AS (
     WHERE n.depth = 6
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
-        usage = trie_nodes.usage + EXCLUDED.usage
+        usage = trie_nodes.usage + LEAST(EXCLUDED.usage, GREATEST(0, 65535 - trie_nodes.count))
     RETURNING id, parent_id, symbol
 )
 
