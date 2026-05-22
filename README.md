@@ -73,6 +73,14 @@ The public API is four SQL functions in `03-functions.sql`:
 | `megahal_greet(num_candidates)` | Generate an initial greeting by picking a random greeting word as keyword to build a reply from. Original MegaHAL did this once on startup.|
 | `megahal_converse(text, num_candidates)` | Learn from the input, then generate a reply. One function call per conversational turn. |
 
+### Known divergence from the spec
+
+The original MegaHAL generates candidate replies in a 1-second loop and returns
+the best-scoring one (spec §7.1). The SQL port instead generates a fixed
+`num_candidates` per call. This is the one intentional behavioral departure
+from `docs/MEGAHAL_SPEC.md`. Increase `num_candidates` to trade latency for
+reply quality.
+
 ## Quick Start
 
 ### Web-based with WASM PostgreSQL (PGlite)
