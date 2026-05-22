@@ -969,13 +969,13 @@ candidates AS (
             UNION ALL
             SELECT fe.step+1, nc.context,
                 fe.entropy + COALESCE(ev.delta, 0.0),
-                fe.num + CASE WHEN ev.scored THEN 1 ELSE 0 END, fe.syms
+                fe.num + CASE WHEN ev.is_keyword THEN 1 ELSE 0 END, fe.syms
             FROM fwd_eval fe
             CROSS JOIN LATERAL (SELECT fe.syms[fe.step] AS sym_id) cur
             CROSS JOIN LATERAL (
                 SELECT CASE WHEN cur.sym_id = ANY(kw.keyword_ids) AND sc.ctx_count > 0
                             THEN -ln(sc.probability / sc.ctx_count::float8) ELSE 0.0 END AS delta,
-                       (cur.sym_id = ANY(kw.keyword_ids) AND sc.ctx_count > 0) AS scored
+                       (cur.sym_id = ANY(kw.keyword_ids)) AS is_keyword
                 FROM (SELECT COALESCE(SUM(child.count::float8 / parent.usage::float8), 0.0) AS probability,
                              COUNT(child.id)::int AS ctx_count
                       FROM generate_series(0, p.ord - 1) AS d(d)
@@ -1002,13 +1002,13 @@ candidates AS (
             UNION ALL
             SELECT be.step-1, nc.context,
                 be.entropy + COALESCE(ev.delta, 0.0),
-                be.num + CASE WHEN ev.scored THEN 1 ELSE 0 END, be.syms
+                be.num + CASE WHEN ev.is_keyword THEN 1 ELSE 0 END, be.syms
             FROM bwd_eval be
             CROSS JOIN LATERAL (SELECT be.syms[be.step] AS sym_id) cur
             CROSS JOIN LATERAL (
                 SELECT CASE WHEN cur.sym_id = ANY(kw.keyword_ids) AND sc.ctx_count > 0
                             THEN -ln(sc.probability / sc.ctx_count::float8) ELSE 0.0 END AS delta,
-                       (cur.sym_id = ANY(kw.keyword_ids) AND sc.ctx_count > 0) AS scored
+                       (cur.sym_id = ANY(kw.keyword_ids)) AS is_keyword
                 FROM (SELECT COALESCE(SUM(child.count::float8 / parent.usage::float8), 0.0) AS probability,
                              COUNT(child.id)::int AS ctx_count
                       FROM generate_series(0, p.ord - 1) AS d(d)
