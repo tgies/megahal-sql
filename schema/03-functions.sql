@@ -1088,7 +1088,7 @@ formatted AS (
              WHEN ch.c ~ '[A-Za-z]' THEN lower(ch.c)
              ELSE ch.c END,
         CASE WHEN f.capitalize_next AND ch.c ~ '[A-Za-z]' THEN false
-             WHEN f.after_terminal AND ch.c ~ '^\s$' THEN true
+             WHEN f.after_terminal AND ch.c ~ '^\s$' AND f.pos > 2 THEN true
              WHEN f.capitalize_next AND NOT (ch.c ~ '[A-Za-z]') THEN true
              ELSE false END,
         ch.c IN ('!', '.', '?'),
