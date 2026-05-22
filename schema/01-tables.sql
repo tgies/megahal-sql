@@ -4,16 +4,16 @@ CREATE TABLE config (
 );
 
 CREATE TABLE symbols (
-    id   SMALLINT PRIMARY KEY,
+    id   INTEGER PRIMARY KEY CHECK (id BETWEEN 0 AND 65535),
     word TEXT NOT NULL UNIQUE
 );
-CREATE SEQUENCE symbols_id_seq AS SMALLINT START WITH 2 OWNED BY symbols.id;
+CREATE SEQUENCE symbols_id_seq AS INTEGER START WITH 2 MAXVALUE 65535 OWNED BY symbols.id;
 
 CREATE TABLE trie_nodes (
     id        INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     parent_id INT REFERENCES trie_nodes(id),
     tree      CHAR(1) NOT NULL CHECK (tree IN ('F', 'B')),
-    symbol    SMALLINT NOT NULL REFERENCES symbols(id),
+    symbol    INTEGER NOT NULL REFERENCES symbols(id),
     usage     INT NOT NULL DEFAULT 0,
     count     INT NOT NULL DEFAULT 0
 );

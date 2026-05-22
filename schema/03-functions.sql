@@ -187,7 +187,7 @@ learnable AS (
 
 -- Extended forward symbols: per-line tokens + <FIN> sentinel
 fwd_syms AS (
-    SELECT array_append(syms, 1::smallint) AS syms
+    SELECT array_append(syms, 1::int) AS syms
     FROM learnable
 ),
 
@@ -247,7 +247,7 @@ fwd_d1 AS (
     SELECT
         (SELECT f_root FROM params),
         'F',
-        n.p1::smallint,
+        n.p1::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM fwd_nodes n
@@ -265,11 +265,11 @@ fwd_d2 AS (
     SELECT
         d1.id,
         'F',
-        n.p2::smallint,
+        n.p2::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM fwd_nodes n
-    JOIN fwd_d1 d1 ON d1.symbol = n.p1::smallint
+    JOIN fwd_d1 d1 ON d1.symbol = n.p1::int
     LEFT JOIN fwd_usage_2 u ON u.p1 = n.p1 AND u.p2 = n.p2
     WHERE n.depth = 2
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
@@ -284,12 +284,12 @@ fwd_d3 AS (
     SELECT
         d2.id,
         'F',
-        n.p3::smallint,
+        n.p3::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM fwd_nodes n
-    JOIN fwd_d1 d1 ON d1.symbol = n.p1::smallint
-    JOIN fwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::smallint
+    JOIN fwd_d1 d1 ON d1.symbol = n.p1::int
+    JOIN fwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::int
     LEFT JOIN fwd_usage_3 u ON u.p1 = n.p1 AND u.p2 = n.p2 AND u.p3 = n.p3
     WHERE n.depth = 3
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
@@ -304,13 +304,13 @@ fwd_d4 AS (
     SELECT
         d3.id,
         'F',
-        n.p4::smallint,
+        n.p4::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM fwd_nodes n
-    JOIN fwd_d1 d1 ON d1.symbol = n.p1::smallint
-    JOIN fwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::smallint
-    JOIN fwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::smallint
+    JOIN fwd_d1 d1 ON d1.symbol = n.p1::int
+    JOIN fwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::int
+    JOIN fwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::int
     LEFT JOIN fwd_usage_4 u ON u.p1 = n.p1 AND u.p2 = n.p2 AND u.p3 = n.p3
                             AND u.p4 = n.p4
     WHERE n.depth = 4
@@ -326,14 +326,14 @@ fwd_d5 AS (
     SELECT
         d4.id,
         'F',
-        n.p5::smallint,
+        n.p5::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM fwd_nodes n
-    JOIN fwd_d1 d1 ON d1.symbol = n.p1::smallint
-    JOIN fwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::smallint
-    JOIN fwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::smallint
-    JOIN fwd_d4 d4 ON d4.parent_id = d3.id AND d4.symbol = n.p4::smallint
+    JOIN fwd_d1 d1 ON d1.symbol = n.p1::int
+    JOIN fwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::int
+    JOIN fwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::int
+    JOIN fwd_d4 d4 ON d4.parent_id = d3.id AND d4.symbol = n.p4::int
     LEFT JOIN fwd_usage_5 u ON u.p1 = n.p1 AND u.p2 = n.p2 AND u.p3 = n.p3
                             AND u.p4 = n.p4 AND u.p5 = n.p5
     WHERE n.depth = 5
@@ -349,15 +349,15 @@ fwd_d6 AS (
     SELECT
         d5.id,
         'F',
-        n.p6::smallint,
+        n.p6::int,
         n.count_incr::int,
         0::int
     FROM fwd_nodes n
-    JOIN fwd_d1 d1 ON d1.symbol = n.p1::smallint
-    JOIN fwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::smallint
-    JOIN fwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::smallint
-    JOIN fwd_d4 d4 ON d4.parent_id = d3.id AND d4.symbol = n.p4::smallint
-    JOIN fwd_d5 d5 ON d5.parent_id = d4.id AND d5.symbol = n.p5::smallint
+    JOIN fwd_d1 d1 ON d1.symbol = n.p1::int
+    JOIN fwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::int
+    JOIN fwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::int
+    JOIN fwd_d4 d4 ON d4.parent_id = d3.id AND d4.symbol = n.p4::int
+    JOIN fwd_d5 d5 ON d5.parent_id = d4.id AND d5.symbol = n.p5::int
     WHERE n.depth = 6
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
@@ -377,7 +377,7 @@ bwd_arrays AS (
 
 -- Extended backward symbols: reversed tokens + <FIN> sentinel
 bwd_syms AS (
-    SELECT array_append(syms, 1::smallint) AS syms
+    SELECT array_append(syms, 1::int) AS syms
     FROM bwd_arrays
 ),
 
@@ -435,7 +435,7 @@ bwd_d1 AS (
     SELECT
         (SELECT b_root FROM params),
         'B',
-        n.p1::smallint,
+        n.p1::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM bwd_nodes n
@@ -453,11 +453,11 @@ bwd_d2 AS (
     SELECT
         d1.id,
         'B',
-        n.p2::smallint,
+        n.p2::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM bwd_nodes n
-    JOIN bwd_d1 d1 ON d1.symbol = n.p1::smallint
+    JOIN bwd_d1 d1 ON d1.symbol = n.p1::int
     LEFT JOIN bwd_usage_2 u ON u.p1 = n.p1 AND u.p2 = n.p2
     WHERE n.depth = 2
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
@@ -472,12 +472,12 @@ bwd_d3 AS (
     SELECT
         d2.id,
         'B',
-        n.p3::smallint,
+        n.p3::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM bwd_nodes n
-    JOIN bwd_d1 d1 ON d1.symbol = n.p1::smallint
-    JOIN bwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::smallint
+    JOIN bwd_d1 d1 ON d1.symbol = n.p1::int
+    JOIN bwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::int
     LEFT JOIN bwd_usage_3 u ON u.p1 = n.p1 AND u.p2 = n.p2 AND u.p3 = n.p3
     WHERE n.depth = 3
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
@@ -492,13 +492,13 @@ bwd_d4 AS (
     SELECT
         d3.id,
         'B',
-        n.p4::smallint,
+        n.p4::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM bwd_nodes n
-    JOIN bwd_d1 d1 ON d1.symbol = n.p1::smallint
-    JOIN bwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::smallint
-    JOIN bwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::smallint
+    JOIN bwd_d1 d1 ON d1.symbol = n.p1::int
+    JOIN bwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::int
+    JOIN bwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::int
     LEFT JOIN bwd_usage_4 u ON u.p1 = n.p1 AND u.p2 = n.p2 AND u.p3 = n.p3
                             AND u.p4 = n.p4
     WHERE n.depth = 4
@@ -514,14 +514,14 @@ bwd_d5 AS (
     SELECT
         d4.id,
         'B',
-        n.p5::smallint,
+        n.p5::int,
         n.count_incr::int,
         COALESCE(u.usage, 0)
     FROM bwd_nodes n
-    JOIN bwd_d1 d1 ON d1.symbol = n.p1::smallint
-    JOIN bwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::smallint
-    JOIN bwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::smallint
-    JOIN bwd_d4 d4 ON d4.parent_id = d3.id AND d4.symbol = n.p4::smallint
+    JOIN bwd_d1 d1 ON d1.symbol = n.p1::int
+    JOIN bwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::int
+    JOIN bwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::int
+    JOIN bwd_d4 d4 ON d4.parent_id = d3.id AND d4.symbol = n.p4::int
     LEFT JOIN bwd_usage_5 u ON u.p1 = n.p1 AND u.p2 = n.p2 AND u.p3 = n.p3
                             AND u.p4 = n.p4 AND u.p5 = n.p5
     WHERE n.depth = 5
@@ -537,15 +537,15 @@ bwd_d6 AS (
     SELECT
         d5.id,
         'B',
-        n.p6::smallint,
+        n.p6::int,
         n.count_incr::int,
         0::int
     FROM bwd_nodes n
-    JOIN bwd_d1 d1 ON d1.symbol = n.p1::smallint
-    JOIN bwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::smallint
-    JOIN bwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::smallint
-    JOIN bwd_d4 d4 ON d4.parent_id = d3.id AND d4.symbol = n.p4::smallint
-    JOIN bwd_d5 d5 ON d5.parent_id = d4.id AND d5.symbol = n.p5::smallint
+    JOIN bwd_d1 d1 ON d1.symbol = n.p1::int
+    JOIN bwd_d2 d2 ON d2.parent_id = d1.id AND d2.symbol = n.p2::int
+    JOIN bwd_d3 d3 ON d3.parent_id = d2.id AND d3.symbol = n.p3::int
+    JOIN bwd_d4 d4 ON d4.parent_id = d3.id AND d4.symbol = n.p4::int
+    JOIN bwd_d5 d5 ON d5.parent_id = d4.id AND d5.symbol = n.p5::int
     WHERE n.depth = 6
     ON CONFLICT (parent_id, tree, symbol) DO UPDATE SET
         count = LEAST(trie_nodes.count + EXCLUDED.count, 65535),
@@ -746,8 +746,8 @@ baseline AS (
                 th AS (SELECT floor(random() * parent.usage)::bigint AS c),
                 rp AS (SELECT cu.symbol AS symbol_id, cu.node_id, false AS is_keyword
                        FROM cu, th WHERE cu.cum > th.c ORDER BY cu.cum LIMIT 1)
-                SELECT symbol_id::smallint, node_id, is_keyword FROM rp
-                UNION ALL SELECT 0::smallint, NULL::int, false WHERE NOT EXISTS (SELECT 1 FROM rp)
+                SELECT symbol_id::int, node_id, is_keyword FROM rp
+                UNION ALL SELECT 0::int, NULL::int, false WHERE NOT EXISTS (SELECT 1 FROM rp)
                 LIMIT 1
             ) ns
             CROSS JOIN LATERAL (
@@ -798,8 +798,8 @@ baseline AS (
                 th AS (SELECT floor(random() * parent.usage)::bigint AS c),
                 rp AS (SELECT cu.symbol AS symbol_id, cu.node_id, false AS is_keyword
                        FROM cu, th WHERE cu.cum > th.c ORDER BY cu.cum LIMIT 1)
-                SELECT symbol_id::smallint, node_id, is_keyword FROM rp
-                UNION ALL SELECT 0::smallint, NULL::int, false WHERE NOT EXISTS (SELECT 1 FROM rp)
+                SELECT symbol_id::int, node_id, is_keyword FROM rp
+                UNION ALL SELECT 0::int, NULL::int, false WHERE NOT EXISTS (SELECT 1 FROM rp)
                 LIMIT 1
             ) ns
             CROSS JOIN LATERAL (
@@ -885,8 +885,8 @@ candidates AS (
                               AND NOT (cu.symbol = ANY(f.reply_syms)))
                           OR cu.cum > th.c
                        ORDER BY cu.pos LIMIT 1)
-                SELECT symbol_id::smallint, node_id, is_keyword FROM rp
-                UNION ALL SELECT 0::smallint, NULL::int, false
+                SELECT symbol_id::int, node_id, is_keyword FROM rp
+                UNION ALL SELECT 0::int, NULL::int, false
                     WHERE NOT EXISTS (SELECT 1 FROM rp)
                 LIMIT 1
             ) ns
@@ -947,8 +947,8 @@ candidates AS (
                               AND NOT (cu.symbol = ANY(b.reply_syms)))
                           OR cu.cum > th.c
                        ORDER BY cu.pos LIMIT 1)
-                SELECT symbol_id::smallint, node_id, is_keyword FROM rp
-                UNION ALL SELECT 0::smallint, NULL::int, false
+                SELECT symbol_id::int, node_id, is_keyword FROM rp
+                UNION ALL SELECT 0::int, NULL::int, false
                     WHERE NOT EXISTS (SELECT 1 FROM rp)
                 LIMIT 1
             ) ns
