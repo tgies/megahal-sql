@@ -35,8 +35,10 @@ def test_symbol_id_sequence_maxvalue_enforced(db):
         db.execute("SELECT nextval('symbols_id_seq')")
 
 
-# Spec §5.3 / megahal.c:1557: when a child's count saturates at 65535,
-# neither count nor parent usage are incremented further.
+# Spec §5.3 / megahal.c:1557-1573: add_symbol gates on the CHILD's count.
+# When a child's count is below 65535 it increments the child's count by 1
+# and the PARENT's usage by 1. A node's own count never gates its usage; its
+# usage is the sum over its children of each child's count increment.
 
 
 def test_count_saturation_caps_at_65535(db):
@@ -52,9 +54,15 @@ def test_count_saturation_caps_at_65535(db):
     assert cap_count == 65535
 
 
-def test_parent_usage_gated_by_unsaturated_count_delta(db):
-    """When a child's count saturates, parent usage does not include the saturated portion."""
-    # Pre-seed a HELLO depth-1 node at the count cap with usage=0.
+def test_parent_usage_not_gated_by_own_count(db):
+    """A node's usage grows from its children even when its own count is saturated.
+
+    Pre-seed a HELLO depth-1 node at the count cap. In C, add_symbol(root,
+    HELLO) leaves HELLO's count and root's usage alone (child saturated), but
+    add_symbol(HELLO, WORLD) still bumps WORLD's count and HELLO's usage
+    because WORLD is below the cap. HELLO's own saturated count must not gate
+    its usage.
+    """
     fwd_root = db.execute(
         "SELECT id FROM trie_nodes WHERE tree = 'F' AND parent_id IS NULL"
     ).fetchone()[0]
@@ -74,9 +82,31 @@ def test_parent_usage_gated_by_unsaturated_count_delta(db):
         (fwd_root,),
     ).fetchone()
     assert after_count == 65535
-    # usage was 0 and count is fully saturated, so usage stays at 0
-    # (no unsaturated portion of the count delta to add).
-    assert after_usage == 0
+    # WORLD follows HELLO three times per line over ten lines, so HELLO's
+    # usage is the sum of WORLD's (below-cap) count increments: 30.
+    assert after_usage == 30
+
+
+def test_parent_usage_equals_sum_of_child_counts(db):
+    """Below saturation, a node's usage equals the sum of its children's counts."""
+    db.execute(
+        "SELECT * FROM megahal_learn(%s)",
+        ("the cat sat on the mat and the cat ran.\n" * 3,),
+    )
+    # Every non-leaf forward/backward node should satisfy the invariant
+    # usage == sum(child.count). The C add_symbol guarantees this below the
+    # 65535 cap.
+    mismatches = db.execute(
+        """
+        SELECT parent.id, parent.usage, COALESCE(SUM(child.count), 0) AS child_sum
+        FROM trie_nodes parent
+        JOIN trie_nodes child
+          ON child.parent_id = parent.id AND child.tree = parent.tree
+        GROUP BY parent.id, parent.usage
+        HAVING parent.usage <> COALESCE(SUM(child.count), 0)
+        """
+    ).fetchall()
+    assert mismatches == [], f"usage != sum(child.count) for: {mismatches}"
 
 
 # Spec §6.2 / megahal.c:2343: the aux keyword pass checks aux-list
