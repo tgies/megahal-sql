@@ -17,11 +17,16 @@ WITH
 
 -- PHASE 1: LINE SPLITTING & TOKENIZATION
 
--- Split input into non-empty, non-comment lines
+-- Split input into non-empty, non-comment lines. btrim is used only to
+-- detect blank and comment lines; the tokenized text keeps leading and
+-- trailing whitespace so it becomes separator tokens, matching C, which
+-- strips only the trailing newline before tokenizing (megahal.c:1842).
+-- Splitting on '\n' already removes that newline (and preserves any trailing
+-- '\r' on CRLF input, which C also keeps).
 input_lines AS (
     SELECT
         row_number() OVER () AS line_id,
-        UPPER(btrim(line)) AS str
+        UPPER(line) AS str
     FROM regexp_split_to_table(input::text, E'\n') AS line
     WHERE btrim(line) <> '' AND btrim(line) !~ '^#'
 ),

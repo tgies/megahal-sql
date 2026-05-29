@@ -160,3 +160,68 @@ def test_learn_horror_bulk_matches_individual(db):
     )
 
 
+def test_learn_keeps_leading_whitespace_as_separator_token(db):
+    """Leading whitespace tokenizes into a separator token, matching C.
+
+    C strips only the trailing newline (megahal.c:1842) then tokenizes via
+    make_words, so leading/trailing spaces survive as separator tokens. The
+    "." append/replace logic means trailing whitespace does not change the
+    token count, but leading whitespace adds one token.
+
+    "A1 B" tokenizes to [A][1][ ][B] then "." is appended -> 5 tokens, which
+    equals order=5 and is skipped (C learns only when size > order,
+    megahal.c:1765). Adding a leading space yields [ ][A][1][ ][B][.] -> 6
+    tokens, which crosses the boundary and is learned.
+    """
+    conn = db
+
+    # Unpadded boundary line: exactly order tokens, skipped.
+    row = conn.execute(
+        "SELECT * FROM megahal_learn(%s)", ("A1 B",)
+    ).fetchone()
+    assert row[1] == 0, "unpadded boundary line should be skipped (size == order)"
+
+    # Same line with leading whitespace: one extra separator token, learned.
+    row = conn.execute(
+        "SELECT * FROM megahal_learn(%s)", (" A1 B",)
+    ).fetchone()
+    assert row[1] == 1, "leading-space line should be learned (size > order)"
+    assert row[0] == 6, "leading space adds a separator token: 6 tokens"
+
+    # A space token must be present in the dictionary after the learned line.
+    (space_syms,) = conn.execute(
+        "SELECT count(*) FROM symbols WHERE word = ' '"
+    ).fetchone()
+    assert space_syms == 1, "the separator space should be interned as a symbol"
+
+
+def test_learn_trailing_whitespace_does_not_change_token_count(db):
+    """Trailing whitespace does not change the token count.
+
+    Without a trailing space the alnum-ending line gets a "." appended; with a
+    trailing space that space is replaced by ".". Both yield the same count, so
+    "A1 B " stays at 5 tokens and is skipped, matching C.
+    """
+    conn = db
+    row = conn.execute(
+        "SELECT * FROM megahal_learn(%s)", ("A1 B ",)
+    ).fetchone()
+    assert row[1] == 0, "trailing-space line should be skipped (size == order)"
+
+
+def test_learn_strips_only_trailing_newline_keeps_cr(db):
+    """A CRLF line keeps its trailing '\\r' as a separator token, like C.
+
+    C strips a single trailing char (the '\\n'), keeping any '\\r'
+    (megahal.c:1842). Splitting on '\\n' in SQL does the same. The '\\r'
+    becomes the line's last token and is replaced by "."; combined with the
+    leading space the line reaches 6 tokens and is learned.
+    """
+    conn = db
+    row = conn.execute(
+        "SELECT * FROM megahal_learn(%s)", (" A1 B\r",)
+    ).fetchone()
+    assert row[1] == 1, "CRLF leading-space line should be learned (size > order)"
+    assert row[0] == 6, "leading space + trailing CR yield 6 tokens"
+
+
