@@ -822,7 +822,7 @@ baseline AS (
 -- PHASE 6: KEYWORD CANDIDATES (N candidates via generate_series + LATERAL)
 
 candidates AS (
-    SELECT c.reply_syms, c.score
+    SELECT n.i AS gen, c.reply_syms, c.score
     FROM generate_series(1, num_candidates) AS n(i)
     CROSS JOIN params p
     CROSS JOIN kw_arrays kw
@@ -1046,18 +1046,39 @@ candidates AS (
 ),
 
 -- PHASE 7: BEST CANDIDATE SELECTION
+--
+-- C generate_reply (megahal.c:2215-2240): output starts as the fallback
+-- string, the baseline reply (empty keywords) overrides it iff dissimilar to
+-- input, then each keyword candidate overrides iff its surprise is strictly
+-- greater than the running max (initialized -1.0) AND dissimilar. So among
+-- dissimilar keyword candidates the highest surprise wins, ties broken by
+-- generation order (earliest, because the test is strictly-greater). If no
+-- dissimilar keyword candidate exists the baseline reply is used if
+-- dissimilar, otherwise the fallback string (produced by the COALESCE on an
+-- empty best_candidate).
 
-all_candidates AS (
-    SELECT reply_syms, score FROM baseline
-    UNION ALL
-    SELECT reply_syms, score FROM candidates
+-- Dissimilar keyword candidates, highest score first, earliest generation as
+-- tiebreak (matching C's strictly-greater replacement).
+best_keyword AS (
+    SELECT c.reply_syms
+    FROM candidates c, input_sym_ids isym
+    WHERE c.reply_syms IS DISTINCT FROM isym.ids
+    ORDER BY c.score DESC, c.gen ASC
+    LIMIT 1
+),
+-- Baseline reply, used only when no dissimilar keyword candidate exists and
+-- the baseline itself is dissimilar to input.
+best_baseline AS (
+    SELECT b.reply_syms
+    FROM baseline b, input_sym_ids isym
+    WHERE b.reply_syms IS DISTINCT FROM isym.ids
+      AND NOT EXISTS (SELECT 1 FROM best_keyword)
+    LIMIT 1
 ),
 best_candidate AS (
-    SELECT reply_syms
-    FROM all_candidates, input_sym_ids isym
-    WHERE reply_syms IS DISTINCT FROM isym.ids
-    ORDER BY score DESC
-    LIMIT 1
+    SELECT reply_syms FROM best_keyword
+    UNION ALL
+    SELECT reply_syms FROM best_baseline
 ),
 
 -- PHASE 8: OUTPUT FORMATTING
