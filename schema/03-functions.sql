@@ -856,8 +856,13 @@ candidates AS (
             FROM seed s
         ),
         fwd AS (
+            -- used_key starts FALSE for every reply and is set TRUE only when
+            -- babble selects a keyword (megahal.c:2379, :2650). seed() never
+            -- touches it (megahal.c:2685), so the seed leaves it FALSE even
+            -- when the seed symbol is a keyword. An aux keyword is selectable
+            -- only once used_key is TRUE.
             SELECT 1 AS step, ARRAY[s.sym_id] AS reply_syms, ic.context,
-                   s.sym_id = ANY(kw.keyword_ids) AS used_key, false AS done
+                   false AS used_key, false AS done
             FROM seed s, initial_fwd_ctx ic
             UNION ALL
             SELECT f.step+1,
