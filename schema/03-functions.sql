@@ -699,8 +699,12 @@ params AS (
 -- PHASE 4: INPUT SYMBOL IDS (for echo rejection)
 
 input_sym_ids AS (
-    SELECT COALESCE(array_agg(s.id ORDER BY t.pos), ARRAY[]::int[]) AS ids
-    FROM tokens t JOIN symbols s ON s.word = t.token
+    -- C dissimilar (megahal.c:2254-2262) compares the full input word array,
+    -- including words not in the model dictionary. A LEFT JOIN keeps every
+    -- input token; unknown tokens map to -1, a sentinel no reply symbol can
+    -- equal, so they read as dissimilar at that position.
+    SELECT COALESCE(array_agg(COALESCE(s.id, -1) ORDER BY t.pos), ARRAY[]::int[]) AS ids
+    FROM tokens t LEFT JOIN symbols s ON s.word = t.token
 ),
 
 -- PHASE 5: BASELINE CANDIDATE (no keywords)
