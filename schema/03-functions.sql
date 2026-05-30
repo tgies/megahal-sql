@@ -145,13 +145,25 @@ interned AS (
     INSERT INTO symbols (id, word)
     SELECT nextval('symbols_id_seq'), word
     FROM (
-        SELECT DISTINCT token AS word
-        FROM tokens
-        WHERE line_id IN (
-            SELECT line_id FROM tokens
-            GROUP BY line_id
-            HAVING count(*) > (SELECT value FROM config WHERE key = 'order')
-        )
+        -- New words get ids in first-appearance (scan) order, matching C
+        -- add_word which assigns id = size-1 as the token stream is scanned
+        -- left to right (megahal.c:1072, 1773-1778). ROW_NUMBER picks each
+        -- token's first (line_id, pos); ORDER BY with OFFSET 0 fences the
+        -- order so nextval is assigned along it.
+        SELECT word
+        FROM (
+            SELECT token AS word, line_id, pos,
+                   ROW_NUMBER() OVER (PARTITION BY token ORDER BY line_id, pos) AS rn
+            FROM tokens
+            WHERE line_id IN (
+                SELECT line_id FROM tokens
+                GROUP BY line_id
+                HAVING count(*) > (SELECT value FROM config WHERE key = 'order')
+            )
+        ) first_occ
+        WHERE rn = 1
+        ORDER BY line_id, pos
+        OFFSET 0
     ) t
     ON CONFLICT (word) DO UPDATE SET word = EXCLUDED.word
     RETURNING id, word
