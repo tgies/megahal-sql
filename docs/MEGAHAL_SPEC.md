@@ -35,7 +35,10 @@ in the backward direction. When the user provides input, MegaHAL:
 
 A symbol is a byte-string with an explicit length:
 
-- **length**: unsigned 8-bit integer (max 255 characters)
+- **length**: unsigned 8-bit integer (max 255 characters). The stored length is the
+  token's byte length truncated modulo 256, so a run of 256 or more same-class
+  characters is interned with a wrapped length (a 256-byte run stores length 0). Such
+  runs do not occur in normal text.
 - **word**: byte array of `length` characters (not null-terminated in storage)
 
 All comparisons are **case-insensitive** (both characters are uppercased via
@@ -165,9 +168,12 @@ user says "YOU", both "I" and "ME" are added as keyword candidates.
 
 ## 4. Tokenization
 
-Input text is converted to uppercase, then split into an alternating sequence of
-**word tokens** and **separator tokens** (non-word symbols). This preserves both
-vocabulary and punctuation/spacing patterns in the model.
+The caller converts the input to uppercase before tokenizing; tokenization itself
+performs no case conversion. The uppercased text is split into an alternating sequence
+of **word tokens** and **separator tokens** (non-word symbols). This preserves both
+vocabulary and punctuation/spacing patterns in the model. (The reply and learn paths
+uppercase first; the command parser tokenizes the raw input, so command keywords are
+matched case-sensitively.)
 
 ### 4.1 Boundary Detection
 
@@ -187,8 +193,9 @@ A word boundary exists at position `p` in the string if and only if:
 
 ### 4.2 Sentence-Terminal Normalization
 
-After tokenization, the sequence is guaranteed to end with a sentence-terminating
-punctuation token:
+If the input is the empty string, tokenization produces **zero tokens** and this step
+is skipped entirely: no terminal token is appended. For any non-empty input the
+sequence is guaranteed to end with a sentence-terminating punctuation token:
 
 - If the **last token** starts with an alphanumeric character, a new token `"."` is
   **appended** to the sequence.
@@ -277,8 +284,9 @@ For each input token (after swap substitutions):
 ### 6.3 Swap Application
 
 For each input token, the entire swap table is scanned. If any `from` entry matches
-the token (case-insensitive), the corresponding `to` entry is used as the keyword
-candidate instead. If multiple swap entries match, all corresponding `to` values
+the token (a full-word comparison: equal length and all characters equal after
+uppercasing, not a substring match), the corresponding `to` entry is used as the
+keyword candidate instead. If multiple swap entries match, all corresponding `to` values
 produce candidates. If no swap entry matches, the original token is used.
 
 ---
@@ -306,8 +314,11 @@ until (now() - start_time) >= TIMEOUT
 return best_output
 ```
 
-**TIMEOUT** is **1 second**. The engine generates as many candidates as it can in
-that time window and returns the best-scoring one.
+**TIMEOUT** is **1 second**, measured by comparing whole-second `time(NULL)` values
+(`(time(NULL) - start) < TIMEOUT`), not a sub-second clock. Because only the integer
+second counts, the actual window runs from near zero up to one second depending on the
+sub-second phase of the start time. The engine generates as many candidates as it can
+in that window and returns the best-scoring one.
 
 The "candidate ≠ input" check (the **dissimilarity test**) compares the candidate's
 token sequence against the input's token sequence. They must differ in either total
@@ -463,6 +474,12 @@ Reply tokens are concatenated directly with no additional separators. Since the
 model preserves non-word tokens (spaces, punctuation), the output naturally contains
 appropriate spacing and punctuation.
 
+### 9.3 Empty Reply
+
+If the reply token sequence is empty, the formatter returns the fixed string
+`"I am utterly speechless!"` rather than an empty string. A separate
+allocation-failure path returns `"I forgot what I was going to say!"`.
+
 ---
 
 ## 10. Conversation Flow
@@ -495,11 +512,18 @@ used to bootstrap.
 ### 11.1 File Structure
 
 All multi-byte integers are written in **native byte order** (platform-dependent;
-the original implementation used whatever the host's `fwrite` produced).
+the original implementation used whatever the host's `fwrite` produced). Two fields,
+the trie node `usage` and the dictionary `size`, are written as the C type `BYTE4`,
+which is defined as `unsigned long`, so their on-disk width is also platform-dependent:
+4 bytes on ILP32 and on Windows (LLP64), 8 bytes on LP64 (modern 64-bit Linux and
+macOS). A reader must size these two fields to the writer's platform. The `symbol`,
+`count`, and `branch` fields are 16-bit and the per-entry word `length` is 8-bit on
+every platform.
 
 ```
 [Cookie]        9 bytes: ASCII "MegaHALv8"
-[Order]         1 byte:  uint8 — the model order
+[Order]         1 byte:  uint8 — the model order (on load this overrides the
+                default order of 5; the loaded model adopts the file's order)
 [Forward Tree]  recursive trie serialization
 [Backward Tree] recursive trie serialization
 [Dictionary]    word list
@@ -511,7 +535,7 @@ Each node is written as:
 
 ```
 [symbol]   2 bytes: uint16
-[usage]    4 bytes: uint32
+[usage]    unsigned long (BYTE4): 4 bytes on 32-bit / Windows, 8 bytes on LP64 (see 11.1)
 [count]    2 bytes: uint16
 [branch]   2 bytes: uint16
 [children] branch × (recursive node serialization)
@@ -522,7 +546,7 @@ Children are written in order (they are sorted by symbol ID in memory).
 ### 11.3 Dictionary Serialization
 
 ```
-[size]     4 bytes: uint32 — number of entries
+[size]     unsigned long (BYTE4): 4 bytes on 32-bit / Windows, 8 bytes on LP64 — number of entries
 For each entry:
   [length] 1 byte:  uint8
   [word]   length bytes: raw characters
@@ -542,8 +566,8 @@ The sorted index is reconstructed at load time by `add_word`.
 | Max symbol length | 255 | Symbol length stored as uint8           |
 | Max symbol ID    | 65535 | Symbol ID stored as uint16              |
 | Max node count   | 65535 | Node count stored as uint16 (saturates) |
-| Max node usage   | ~4.2B | Node usage stored as uint32             |
-| Max dict size    | ~4.2B | Dictionary size stored as uint32        |
+| Max node usage   | ~4.2B (32-bit) / ~1.8e19 (64-bit) | Node usage stored as `unsigned long` (BYTE4) |
+| Max dict size    | ~4.2B (32-bit) / ~1.8e19 (64-bit) | Dictionary size stored as `unsigned long` (BYTE4) |
 
 ---
 
@@ -659,8 +683,7 @@ WHAT  WHEN  WHERE  WHICH  WHILE  WHO  WILL  WITH  WOULD  YET  YOU  YOUR
 ### B.1 Tokenization
 
 ```
-function tokenize(input):
-    input = uppercase(input)
+function tokenize(input):   // input is already uppercased by the caller
     tokens = []
     offset = 0
 
@@ -673,7 +696,8 @@ function tokenize(input):
         else:
             offset += 1
 
-    // Ensure sentence-terminal punctuation
+    // Ensure sentence-terminal punctuation (empty input yields no tokens, skip)
+    if tokens.length == 0: return tokens
     last = tokens[tokens.length - 1]
     if is_alphanumeric(last[0]):
         tokens.append(".")
